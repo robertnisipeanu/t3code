@@ -437,7 +437,10 @@ function ProjectDetail({ group }: { group: SidebarProjectSnapshot }) {
 
   // ----- default model -----
   const storedSelection = representative.defaultModelSelection;
-  const resolvedSelection = resolveDefaultProviderModelSelection(serverProviders, storedSelection);
+  const inheritedSelection = projectSettings.defaultThreadModelSelection;
+  const effectiveSelection = storedSelection ?? inheritedSelection;
+  const resolvedSelection =
+    effectiveSelection ?? resolveDefaultProviderModelSelection(serverProviders, null);
   const resolvedInstanceId = resolvedSelection?.instanceId ?? null;
   const resolvedModel = resolvedSelection?.model ?? null;
   const instanceEntries = useMemo(
@@ -887,7 +890,7 @@ function ProjectDetail({ group }: { group: SidebarProjectSnapshot }) {
           />
           <SettingsRow
             title="Model"
-            description="New threads in this project start with this model. Applies to every checkout in this group."
+            description="New threads in this project start with this model. Overrides the environment default and applies to every checkout in this group."
             resetAction={
               storedSelection !== null ? (
                 <SettingResetButton
@@ -939,6 +942,10 @@ function ProjectDetail({ group }: { group: SidebarProjectSnapshot }) {
                     }}
                   />
                 </div>
+              ) : effectiveSelection ? (
+                <span className="text-sm text-muted-foreground">
+                  {effectiveSelection.instanceId} / {effectiveSelection.model} (Unavailable)
+                </span>
               ) : (
                 <span className="text-sm text-muted-foreground">No providers available</span>
               )

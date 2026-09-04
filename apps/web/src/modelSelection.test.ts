@@ -508,6 +508,81 @@ describe("instance-scoped model selection", () => {
     ).toBe("gpt-5.6-sol");
   });
 
+  it("preserves a missing configured default for any provider when requested", () => {
+    const instanceId = ProviderInstanceId.make("codex");
+    const providers = [
+      provider({
+        provider: ProviderDriverKind.make("codex"),
+        instanceId,
+        models: ["gpt-5.6-sol"],
+      }),
+    ];
+    const entry = deriveProviderInstanceEntries(providers)[0]!;
+
+    expect(
+      getAppModelOptionsForInstance(settingsWithProviderInstances(), entry, "gpt-missing", {
+        preserveUnavailableSelection: true,
+      }),
+    ).toContainEqual({
+      slug: "gpt-missing",
+      name: "gpt-missing",
+      isCustom: false,
+      isUnavailable: true,
+    });
+    expect(
+      resolveAppModelSelectionForInstance(
+        instanceId,
+        settingsWithProviderInstances(),
+        providers,
+        "gpt-missing",
+        { preserveAnyUnavailableSelection: true },
+      ),
+    ).toBe("gpt-missing");
+  });
+
+  it("keeps an implicit sticky model behind a configured environment default", () => {
+    const instanceId = ProviderInstanceId.make("codex");
+    const driver = ProviderDriverKind.make("codex");
+    const providers = [provider({ provider: driver, instanceId, models: ["gpt-current"] })];
+
+    const state = deriveEffectiveComposerModelState({
+      draft: {
+        activeProvider: instanceId,
+        modelSelectionByProvider: {
+          [instanceId]: createModelSelection(instanceId, "gpt-current"),
+        },
+      },
+      providers,
+      selectedProvider: driver,
+      selectedInstanceId: instanceId,
+      threadModelSelection: createModelSelection(instanceId, "gpt-missing"),
+      projectModelSelection: null,
+      settings: settingsWithProviderInstances(),
+      preserveThreadModelSelection: true,
+    });
+
+    expect(state.selectedModel).toBe("gpt-missing");
+
+    expect(
+      deriveEffectiveComposerModelState({
+        draft: {
+          activeProvider: instanceId,
+          modelSelectionByProvider: {
+            [instanceId]: createModelSelection(instanceId, "gpt-current"),
+          },
+          modelSelectionExplicit: true,
+        },
+        providers,
+        selectedProvider: driver,
+        selectedInstanceId: instanceId,
+        threadModelSelection: createModelSelection(instanceId, "gpt-missing"),
+        projectModelSelection: null,
+        settings: settingsWithProviderInstances(),
+        preserveThreadModelSelection: true,
+      }).selectedModel,
+    ).toBe("gpt-current");
+  });
+
   it("falls back from an explicit non-OpenCode draft with a missing model", () => {
     const instanceId = ProviderInstanceId.make("codex");
     const driver = ProviderDriverKind.make("codex");
