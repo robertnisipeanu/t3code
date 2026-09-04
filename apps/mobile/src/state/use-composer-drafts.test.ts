@@ -201,7 +201,7 @@ describe("mobile composer drafts", () => {
 
     expect(appAtomRegistry.get(composerDraftsAtom)).toEqual({
       [sourceKey]: source,
-      [targetKey]: target,
+      [targetKey]: { ...target, runtimeMode: "full-access" },
       [unrelatedKey]: unrelated,
     });
   });
@@ -904,6 +904,17 @@ describe("mobile composer drafts", () => {
     ).toThrow();
   });
 
+  it("keeps current new-task drafts implicit across reloads", () => {
+    const draft = { text: "keep drafting", attachments: [] } satisfies ComposerDraft;
+
+    expect(
+      decodePersistedComposerDrafts({
+        schemaVersion: 2,
+        drafts: { "new-task:environment-1:project-1": draft },
+      }),
+    ).toEqual({ "new-task:environment-1:project-1": draft });
+  });
+
   it("keeps share-import receipts on otherwise contentless new-task drafts", () => {
     const receiptDraft: ComposerDraft = {
       text: "",
@@ -931,6 +942,11 @@ describe("mobile composer drafts", () => {
         text: "",
         attachments: [],
         importedShareIds: ["share-1"],
+        runtimeMode: "full-access",
+        modelSelection: {
+          instanceId: "codex",
+          model: "gpt-5.4",
+        },
       },
     });
 
@@ -939,7 +955,12 @@ describe("mobile composer drafts", () => {
         schemaVersion: 1,
         drafts: { "new-task:environment-1:project-1": receiptDraft },
       }).drafts,
-    ).toEqual({ "new-task:environment-1:project-1": receiptDraft });
+    ).toEqual({
+      "new-task:environment-1:project-1": {
+        ...receiptDraft,
+        runtimeMode: "full-access",
+      },
+    });
   });
 
   it("hydrates the global sticky model selection", () => {
@@ -961,7 +982,7 @@ describe("mobile composer drafts", () => {
   it("waits for hydration before persisting the latest composer state", async () => {
     vi.useFakeTimers();
     composerDraftFileMocks.setDocument({
-      schemaVersion: 1,
+      schemaVersion: 2,
       drafts: {
         "environment-1:thread-1": DRAFT,
       },
@@ -987,7 +1008,7 @@ describe("mobile composer drafts", () => {
     await vi.runAllTimersAsync();
 
     expect(JSON.parse(composerDraftFileMocks.getWrites()[0]!)).toEqual({
-      schemaVersion: 1,
+      schemaVersion: 2,
       drafts: {
         "environment-1:thread-1": DRAFT,
         "new-task:environment-1:project-1": {
@@ -1082,7 +1103,7 @@ describe("mobile composer drafts", () => {
     await bothWritesCommitted;
 
     expect(JSON.parse(composerDraftFileMocks.getDocument())).toEqual({
-      schemaVersion: 1,
+      schemaVersion: 2,
       drafts: {
         "environment-2:thread-2": { text: "keep", attachments: [] },
       },
@@ -1136,11 +1157,13 @@ describe("mobile composer drafts", () => {
         worktreePath: null,
         startFromOrigin: false,
       },
+      runtimeMode: "approval-required",
     };
 
     expect(
       clearComposerDraftContentState({ [draftKey]: draft }, draftKey, {
         clearModelSelection: true,
+        clearRuntimeMode: true,
         clearWorkspaceSelection: true,
       }),
     ).toEqual({});
@@ -1377,7 +1400,7 @@ describe("mobile composer drafts", () => {
     await undoComposerDraftMerge(draftKey, snapshot, merged);
 
     expect(JSON.parse(composerDraftFileMocks.getDocument())).toEqual({
-      schemaVersion: 1,
+      schemaVersion: 2,
       drafts: { [draftKey]: snapshot },
       stickyModelSelection: {
         instanceId: "codex",
